@@ -357,12 +357,32 @@ function renderGrid() {
       const empty = document.createElement('div');
       empty.className = 'empty-cell';
       if (i < images.length) {
-        empty.style.cssText += 'border-color:var(--pink);opacity:0.7;';
-        empty.title = '빈 자리 (여기에 사진이 들어와요)';
-        const arrow = document.createElement('span');
-        arrow.style.cssText = 'font-size:18px;color:var(--pink);';
-        arrow.textContent = '↙';
-        empty.appendChild(arrow);
+        const slotIdx = i;
+        empty.style.cssText += 'border-color:var(--pink);border-width:2px;cursor:pointer;';
+        empty.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;"><span style="font-size:20px;color:var(--pink);">+</span><span style="font-size:9px;color:var(--pink);font-weight:600;">사진 추가</span></div>';
+        empty.onclick = () => {
+          const input = document.createElement('input');
+          input.type = 'file'; input.accept = 'image/*';
+          input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+              compressImage(ev.target.result, compressed => {
+                images[slotIdx] = { src: compressed, filter: currentFilter, brightness: adjustments.brightness, contrast: adjustments.contrast, saturation: adjustments.saturation, warmth: adjustments.warmth };
+                renderGrid(); extractPalette(); saveToStorage();
+              });
+            };
+            reader.readAsDataURL(file);
+          };
+          input.click();
+        };
+        empty.addEventListener('dragover', e => { e.preventDefault(); empty.style.background = 'var(--pink-light)'; });
+        empty.addEventListener('dragleave', () => { empty.style.background = ''; });
+        empty.addEventListener('drop', e => {
+          e.preventDefault(); empty.style.background = '';
+          if (dragSrc !== null) { [images[dragSrc], images[slotIdx]] = [images[slotIdx], images[dragSrc]]; renderGrid(); saveToStorage(); }
+        });
       } else {
         empty.onclick = () => document.getElementById('file-input').click();
         empty.innerHTML = '<span style="font-size:22px;color:var(--text3);">+</span>';
