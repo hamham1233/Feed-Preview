@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>feedpreview</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #fff;
+    --bg2: #f7f7f7;
+    --bg3: #f0f0f0;
+    --text: #111;
+    --text2: #666;
+    --text3: #999;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --pink: #C13584;
+    --pink-light: rgba(193,53,132,0.1);
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --bg2: #242424;
+      --bg3: #2e2e2e;
+      --text: #f0f0f0;
+      --text2: #aaa;
+      --text3: #666;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.18);
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+  .logo { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; }
+  .logo span { color: var(--pink); }
+  .tab-bar { display: flex; gap: 4px; }
+  .tab { font-size: 13px; padding: 6px 14px; border-radius: var(--radius); cursor: pointer; border: 0.5px solid var(--border); color: var(--text2); background: transparent; transition: all 0.15s; }
+  .tab.active { background: var(--text); color: var(--bg); border-color: transparent; }
+  .main { display: flex; flex: 1; min-height: 0; }
+  .sidebar { width: 240px; border-right: 0.5px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex-shrink: 0; }
+  .sidebar-section { display: flex; flex-direction: column; gap: 8px; }
+  .section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+  .upload-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 20px 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-zone:hover { border-color: var(--pink); background: var(--pink-light); }
+  .upload-zone p { font-size: 12px; color: var(--text2); line-height: 1.6; margin-top: 6px; }
+  .upload-icon { font-size: 24px; }
+  #file-input { display: none; }
+  .filter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .filter-btn { aspect-ratio: 1; border-radius: var(--radius); cursor: pointer; border: 2px solid transparent; overflow: hidden; position: relative; transition: all 0.15s; }
+  .filter-btn.active { border-color: var(--pink); }
+  .filter-preview { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text2); background: var(--bg2); }
+  .filter-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 9px; text-align: center; padding: 2px 0; }
+  .slider-row { display: flex; flex-direction: column; gap: 4px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); }
+  .slider-label span:last-child { color: var(--text); font-weight: 500; }
+  input[type=range] { width: 100%; accent-color: var(--pink); }
+  .apply-btn { width: 100%; font-size: 12px; padding: 8px; border: 0.5px solid var(--border2); border-radius: var(--radius); cursor: pointer; background: transparent; color: var(--text2); transition: all 0.15s; }
+  .apply-btn:hover { background: var(--bg2); color: var(--text); }
+  .palette-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .palette-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--bg); box-shadow: 0 0 0 0.5px var(--border); cursor: pointer; transition: transform 0.15s; flex-shrink: 0; }
+  .palette-swatch:hover { transform: scale(1.15); }
+  .content-area { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .profile-mock { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 0.5px solid var(--border); }
+  .profile-avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #F9CE34, #EE2A7B, #6228D7); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 18px; flex-shrink: 0; }
+  .profile-name { font-size: 15px; font-weight: 600; }
+  .profile-stats { display: flex; gap: 16px; margin-top: 4px; }
+  .profile-stat { font-size: 12px; color: var(--text2); }
+  .profile-stat strong { color: var(--text); font-weight: 600; }
+  .grid-hint { font-size: 12px; color: var(--text3); }
+  .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .grid-cell { aspect-ratio: 4/5; position: relative; overflow: hidden; background: var(--bg2); border-radius: 2px; cursor: grab; transition: opacity 0.2s, transform 0.15s; }
+  .grid-cell:active { cursor: grabbing; }
+  .grid-cell.dragging { opacity: 0.35; transform: scale(0.95); }
+  .grid-cell.drag-over { outline: 2.5px solid var(--pink); outline-offset: -2px; }
+  .grid-cell img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; transition: filter 0.3s; display: block; }
+  .cell-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0); display: flex; align-items: center; justify-content: center; opacity: 0; transition: all 0.2s; }
+  .grid-cell:hover .cell-overlay { background: rgba(0,0,0,0.28); opacity: 1; }
+  .cell-num { color: #fff; font-size: 20px; font-weight: 600; }
+  .cell-del { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.2s; border: none; line-height: 1; }
+  .grid-cell:hover .cell-del { opacity: 1; }
+  .empty-cell { aspect-ratio: 4/5; background: var(--bg2); border-radius: 2px; display: flex; align-items: center; justify-content: center; border: 1.5px dashed var(--border); cursor: pointer; transition: background 0.15s; }
+  .empty-cell:hover { background: var(--bg3); }
+  .hint-block { text-align: center; padding: 32px 20px; color: var(--text3); font-size: 13px; line-height: 1.7; }
+  .hint-emoji { font-size: 32px; display: block; margin-bottom: 10px; }
+  .color-bar-row { display: flex; align-items: center; gap: 10px; }
+  .color-bar-swatch { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; border: 0.5px solid var(--border); }
+  .color-bar-track { flex: 1; height: 4px; border-radius: 2px; background: var(--bg3); overflow: hidden; }
+  .color-bar-fill { height: 100%; border-radius: 2px; }
+  .color-bar-hex { font-size: 11px; font-weight: 500; color: var(--text); min-width: 54px; }
+  .color-bar-pct { font-size: 11px; color: var(--text2); min-width: 28px; text-align: right; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 600; background: var(--pink-light); color: var(--pink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="logo">feed<span>preview</span></div>
+      <span class="badge">beta</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="tab" onclick="clearAll()" style="color:#e04040;border-color:rgba(224,64,64,0.25);">전체 삭제</button>
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('grid',this)">grid</button>
+        <button class="tab" onclick="switchTab('palette',this)">palette</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="section-title">사진 추가</div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="upload-icon">📷</div>
+          <p>클릭하거나 사진을<br>여기에 끌어다 놓기</p>
+        </div>
+        <input type="file" id="file-input" accept="image/*" multiple onchange="handleFiles(this.files)">
+      </div>
+
+      <div class="sidebar-section" id="filter-section">
+        <div class="section-title">필터</div>
+        <div class="filter-grid" id="filter-grid"></div>
+      </div>
+
+      <div class="sidebar-section" id="adjust-section">
+        <div class="section-title">보정</div>
+        <div class="slider-row">
+          <div class="slider-label"><span>밝기</span><span id="brightness-val">0</span></div>
+          <input type="range" min="-100" max="100" value="0" step="1" oninput="updateAdjust('brightness',this.value)" id="brightness-sl">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span>대비</span><span id="contrast-val">0</span></div>
+          <input type="range" min="-100" max="100" value="0" step="1" oninput="updateAdjust('contrast',this.value)" id="contrast-sl">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span>채도</span><span id="saturation-val">0</span></div>
+          <input type="range" min="-100" max="100" value="0" step="1" oninput="updateAdjust('saturation',this.value)" id="saturation-sl">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span>따뜻함</span><span id="warmth-val">0</span></div>
+          <input type="range" min="-100" max="100" value="0" step="1" oninput="updateAdjust('warmth',this.value)" id="warmth-sl">
+        </div>
+        <button class="apply-btn" onclick="applyToAll()">✦ 모든 사진에 적용</button>
+        <button class="apply-btn" onclick="resetAdjust()" style="margin-top:2px;">↺ 보정 초기화</button>
+      </div>
+
+      <div class="sidebar-section" id="palette-sidebar" style="display:none;">
+        <div class="section-title">색상 팔레트</div>
+        <div class="palette-row" id="palette-display">
+          <span style="font-size:12px;color:var(--text2);">사진을 업로드하면<br>팔레트가 분석됩니다</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <div class="profile-mock">
+        <div class="profile-avatar">나</div>
+        <div>
+          <div class="profile-name">내 인스타그램</div>
+          <div class="profile-stats">
+            <div class="profile-stat"><strong id="post-count">0</strong> 게시물</div>
+            <div class="profile-stat"><strong>—</strong> 팔로워</div>
+            <div class="profile-stat"><strong>—</strong> 팔로잉</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="grid-view">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span class="grid-hint" id="drag-hint" style="display:none;">드래그로 순서 변경 · 마우스 올리면 삭제</span>
+          <button id="shift-btn" onclick="shiftRight()" style="display:none;font-size:12px;padding:5px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:transparent;color:var(--text2);transition:all 0.15s;white-space:nowrap;" onmouseover="this.style.background='var(--bg2)';this.style.color='var(--text)'" onmouseout="this.style.background='transparent';this.style.color='var(--text2)'">← 한 칸 밀기</button>
+        </div>
+        <div class="grid-container" id="grid"></div>
+        <div class="hint-block" id="hint-block">
+          <span class="hint-emoji">🖼️</span>
+          사진을 업로드하면<br>인스타그램 그리드로 미리볼 수 있어요
+        </div>
+      </div>
+
+      <div id="palette-view" style="display:none;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">전체 피드의 색상 구성 분석</div>
+        <div id="color-analysis" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <div style="margin-top:20px;">
+          <div class="section-title" style="margin-bottom:10px;">스와치</div>
+          <div class="palette-row" id="palette-big"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let images = [];
+let dragSrc = null;
+let currentFilter = 'none';
+let adjustments = { brightness: 0, contrast: 0, saturation: 0, warmth: 0 };
+
+const STORAGE_KEY = 'feedpreview_images';
+
+function shiftRight() {
+  images.unshift(null);
+  renderGrid();
+  saveToStorage();
+}
+
+function clearAll() {
+  if (!images.length) return;
+  if (confirm(`사진 ${images.length}장을 모두 삭제할까요?`)) {
+    images = [];
+    localStorage.removeItem(STORAGE_KEY);
+    renderGrid();
+    document.getElementById('palette-display').innerHTML = '<span style="font-size:12px;color:var(--text2);">사진을 업로드하면<br>팔레트가 분석됩니다</span>';
+    document.getElementById('color-analysis').innerHTML = '';
+    const pb = document.getElementById('palette-big');
+    if (pb) pb.innerHTML = '';
+  }
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(images));
+  } catch(e) {
+    console.warn('저장 실패 (용량 초과일 수 있어요):', e);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) images = JSON.parse(saved);
+  } catch(e) {
+    images = [];
+  }
+}
+
+const FILTERS = [
+  { name: '없음',      id: 'none',      css: '' },
+  { name: 'Clarendon', id: 'clarendon', css: 'contrast(1.2) saturate(1.35)' },
+  { name: 'Gingham',   id: 'gingham',   css: 'brightness(1.05) hue-rotate(-10deg) saturate(0.9)' },
+  { name: 'Juno',      id: 'juno',      css: 'contrast(1.1) saturate(1.4) sepia(0.1)' },
+  { name: 'Lark',      id: 'lark',      css: 'contrast(0.9) brightness(1.1) saturate(1.25)' },
+  { name: 'Reyes',     id: 'reyes',     css: 'sepia(0.22) brightness(1.1) contrast(0.85) saturate(0.75)' },
+  { name: 'Moon',      id: 'moon',      css: 'grayscale(1) contrast(1.1) brightness(1.05)' },
+  { name: 'Fade',      id: 'fade',      css: 'brightness(1.15) contrast(0.85) saturate(0.8) sepia(0.05)' },
+  { name: 'Warm',      id: 'warm',      css: 'sepia(0.4) saturate(1.3) brightness(1.05)' },
+];
+
+const SAMPLE_COLORS = ['#E8C5A0','#A8C5E8','#C5E8A8','#E8A8C5','#C5A8E8','#E8E8A8','#A8E8C5','#E8C5C5','#A8A8E8'];
+
+function buildFilterCSS(img) {
+  const f = FILTERS.find(x => x.id === img.filter) || FILTERS[0];
+  const b = 1 + (img.brightness || 0) / 100;
+  const c = 1 + (img.contrast || 0) / 100;
+  const s = 1 + (img.saturation || 0) / 100;
+  const w = img.warmth || 0;
+  let base = `brightness(${b.toFixed(2)}) contrast(${c.toFixed(2)}) saturate(${s.toFixed(2)})`;
+  if (w !== 0) base += ` sepia(${Math.abs(w / 200).toFixed(2)})`;
+  return f.css ? `${f.css} ${base}` : base;
+}
+
+function compressImage(dataURL, callback) {
+  const img = new Image();
+  img.onload = () => {
+    const MAX = 800;
+    let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', 0.7));
+  };
+  img.src = dataURL;
+}
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      compressImage(e.target.result, compressed => {
+        images.push({
+          src: compressed,
+          filter: currentFilter,
+          brightness: adjustments.brightness,
+          contrast: adjustments.contrast,
+          saturation: adjustments.saturation,
+          warmth: adjustments.warmth,
+        });
+        renderGrid();
+        extractPalette();
+        saveToStorage();
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const realCount = images.filter(Boolean).length;
+  document.getElementById('post-count').textContent = realCount;
+  document.getElementById('hint-block').style.display = realCount ? 'none' : 'block';
+  document.getElementById('drag-hint').style.display = realCount ? 'inline' : 'none';
+  document.getElementById('shift-btn').style.display = realCount ? 'inline-block' : 'none';
+
+  const slots = Math.max(images.length + (images.length % 3 === 0 ? 0 : 3 - images.length % 3), 9);
+
+  for (let i = 0; i < slots; i++) {
+    const imgData = i < images.length ? images[i] : null;
+
+    if (imgData) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      cell.draggable = true;
+      cell.dataset.idx = i;
+
+      const img = document.createElement('img');
+      img.src = imgData.src;
+      img.style.filter = buildFilterCSS(imgData);
+
+      const overlay = document.createElement('div');
+      overlay.className = 'cell-overlay';
+      const num = document.createElement('span');
+      num.className = 'cell-num';
+      num.textContent = i + 1;
+      overlay.appendChild(num);
+
+      const del = document.createElement('button');
+      del.className = 'cell-del';
+      del.textContent = '×';
+      del.onclick = e => { e.stopPropagation(); images.splice(i, 1); renderGrid(); extractPalette(); saveToStorage(); };
+
+      cell.appendChild(img); cell.appendChild(overlay); cell.appendChild(del);
+
+      cell.addEventListener('dragstart', e => { dragSrc = i; setTimeout(() => cell.classList.add('dragging'), 0); e.dataTransfer.effectAllowed = 'move'; });
+      cell.addEventListener('dragend', () => { cell.classList.remove('dragging'); document.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('drag-over')); });
+      cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('drag-over'); });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+      cell.addEventListener('drop', e => {
+        e.preventDefault();
+        if (dragSrc !== null && dragSrc !== i) {
+          [images[dragSrc], images[i]] = [images[i], images[dragSrc]];
+          renderGrid();
+          saveToStorage();
+        }
+      });
+      grid.appendChild(cell);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'empty-cell';
+      if (i < images.length) {
+        const slotIdx = i;
+        empty.style.cssText += 'border-color:var(--pink);border-width:2px;cursor:pointer;';
+        empty.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;"><span style="font-size:20px;color:var(--pink);">+</span><span style="font-size:9px;color:var(--pink);font-weight:600;">사진 추가</span></div>';
+        empty.onclick = () => {
+          const input = document.createElement('input');
+          input.type = 'file'; input.accept = 'image/*';
+          input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+              compressImage(ev.target.result, compressed => {
+                images[slotIdx] = { src: compressed, filter: currentFilter, brightness: adjustments.brightness, contrast: adjustments.contrast, saturation: adjustments.saturation, warmth: adjustments.warmth };
+                renderGrid(); extractPalette(); saveToStorage();
+              });
+            };
+            reader.readAsDataURL(file);
+          };
+          input.click();
+        };
+        empty.addEventListener('dragover', e => { e.preventDefault(); empty.style.background = 'var(--pink-light)'; });
+        empty.addEventListener('dragleave', () => { empty.style.background = ''; });
+        empty.addEventListener('drop', e => {
+          e.preventDefault(); empty.style.background = '';
+          if (dragSrc !== null) { [images[dragSrc], images[slotIdx]] = [images[slotIdx], images[dragSrc]]; renderGrid(); saveToStorage(); }
+        });
+      } else {
+        empty.onclick = () => document.getElementById('file-input').click();
+        empty.innerHTML = '<span style="font-size:22px;color:var(--text3);">+</span>';
+      }
+      grid.appendChild(empty);
+    }
+  }
+}
+
+function updateAdjust(type, val) {
+  adjustments[type] = parseInt(val);
+  document.getElementById(`${type}-val`).textContent = val;
+  if (images.length) {
+    images[images.length - 1][type] = parseInt(val);
+    renderGrid();
+  }
+}
+
+function applyToAll() {
+  images = images.map(img => ({ ...img, ...adjustments, filter: currentFilter }));
+  renderGrid();
+  saveToStorage();
+}
+
+function resetAdjust() {
+  adjustments = { brightness: 0, contrast: 0, saturation: 0, warmth: 0 };
+  ['brightness','contrast','saturation','warmth'].forEach(k => {
+    document.getElementById(`${k}-sl`).value = 0;
+    document.getElementById(`${k}-val`).textContent = 0;
+  });
+  if (images.length) {
+    images[images.length - 1] = { ...images[images.length - 1], ...adjustments };
+    renderGrid();
+    saveToStorage();
+  }
+}
+
+function selectFilter(id) {
+  currentFilter = id;
+  document.querySelectorAll('.filter-btn').forEach((b, i) => b.classList.toggle('active', FILTERS[i].id === id));
+  if (images.length) { images[images.length - 1].filter = id; renderGrid(); saveToStorage(); }
+}
+
+function buildFilterGrid() {
+  const grid = document.getElementById('filter-grid');
+  grid.innerHTML = '';
+  FILTERS.forEach((f, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'filter-btn' + (f.id === 'none' ? ' active' : '');
+    btn.onclick = () => selectFilter(f.id);
+    const preview = document.createElement('div');
+    preview.className = 'filter-preview';
+    preview.style.cssText = `width:100%;height:100%;background:${SAMPLE_COLORS[i % SAMPLE_COLORS.length]};filter:${f.css};`;
+    const label = document.createElement('div');
+    label.className = 'filter-label';
+    label.textContent = f.name;
+    btn.appendChild(preview); btn.appendChild(label);
+    grid.appendChild(btn);
+  });
+}
+
+function extractPalette() {
+  const valid = images.filter(Boolean);
+  if (!valid.length) return;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const size = 12;
+  canvas.width = size * valid.length; canvas.height = size;
+  let loaded = 0;
+  valid.forEach((imgData, idx) => {
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, idx * size, 0, size, size);
+      loaded++;
+      if (loaded === valid.length) processPalette(ctx, canvas.width, canvas.height);
+    };
+    img.src = imgData.src;
+  });
+}
+
+function processPalette(ctx, w, h) {
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const buckets = {};
+  for (let i = 0; i < data.length; i += 4) {
+    const r = Math.round(data[i] / 32) * 32;
+    const g = Math.round(data[i+1] / 32) * 32;
+    const b = Math.round(data[i+2] / 32) * 32;
+    const key = `${r},${g},${b}`;
+    buckets[key] = (buckets[key] || 0) + 1;
+  }
+  const sorted = Object.entries(buckets).sort((a,b) => b[1]-a[1]).slice(0,10);
+  const total = sorted.reduce((s,[,v]) => s+v, 0);
+
+  const toHex = key => {
+    const [r,g,b] = key.split(',').map(Number);
+    return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+  };
+
+  const pd = document.getElementById('palette-display');
+  pd.innerHTML = '';
+  const pb = document.getElementById('palette-big');
+  if (pb) pb.innerHTML = '';
+
+  sorted.forEach(([key, count]) => {
+    const hex = toHex(key);
+    const pct = Math.round(count / total * 100);
+    const sw = document.createElement('div');
+    sw.className = 'palette-swatch';
+    sw.style.background = hex;
+    sw.title = `${hex} · ${pct}%`;
+    pd.appendChild(sw);
+    if (pb) {
+      const sw2 = sw.cloneNode();
+      sw2.style.width = sw2.style.height = '36px';
+      pb.appendChild(sw2);
+    }
+  });
+
+  const ca = document.getElementById('color-analysis');
+  if (ca) {
+    ca.innerHTML = '';
+    sorted.slice(0,7).forEach(([key, count]) => {
+      const hex = toHex(key);
+      const pct = Math.round(count / total * 100);
+      const row = document.createElement('div');
+      row.className = 'color-bar-row';
+      row.innerHTML = `
+        <div class="color-bar-swatch" style="background:${hex};"></div>
+        <span class="color-bar-hex">${hex}</span>
+        <div class="color-bar-track"><div class="color-bar-fill" style="width:${pct}%;background:${hex};"></div></div>
+        <span class="color-bar-pct">${pct}%</span>
+      `;
+      ca.appendChild(row);
+    });
+  }
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('grid-view').style.display = tab === 'grid' ? 'block' : 'none';
+  document.getElementById('palette-view').style.display = tab === 'palette' ? 'block' : 'none';
+  document.getElementById('filter-section').style.display = tab === 'grid' ? 'flex' : 'none';
+  document.getElementById('adjust-section').style.display = tab === 'grid' ? 'flex' : 'none';
+  document.getElementById('palette-sidebar').style.display = tab === 'palette' ? 'flex' : 'none';
+  if (tab === 'palette') extractPalette();
+}
+
+const uz = document.getElementById('upload-zone');
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.style.borderColor = 'var(--pink)'; uz.style.background = 'var(--pink-light)'; });
+uz.addEventListener('dragleave', () => { uz.style.borderColor = ''; uz.style.background = ''; });
+uz.addEventListener('drop', e => { e.preventDefault(); uz.style.borderColor = ''; uz.style.background = ''; handleFiles(e.dataTransfer.files); });
+
+buildFilterGrid();
+loadFromStorage();
+renderGrid();
+if (images.length) extractPalette();
+</script>
+</body>
+</html>
